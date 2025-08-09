@@ -1,0 +1,60 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+/ios/Pods/
+/ios/.symlinks/
+/ios/Flutter/App.framework
+/ios/Flutter/Flutter.framework
+/ios/Flutter/flutter_assets/
+/ios/Flutter/Generated.xcconfig
+/ios/Runner/GeneratedPluginRegistrant.*
+/ios/Runner.xcworkspace/
+/ios/Runner.xcodeproj/project.xcworkspace/
+/ios/Runner.xcodeproj/xcshareddata/
+/ios/Flutter/ephemeral/
+/ios/ServiceDefinitions.json
+
+# Android
+/android/app/src/main/assets/flutter_assets/
+/android/key.properties
+/android/local.properties
+/android/.gradle/
+/android/app/build/
+/android/build/
+.idea/
+
+# Windows
+/windows/flutter/ephemeral/
+/windows/runner/Debug/
+/windows/runner/Profile/
+/windows/runner/Release/
+/windows/flutter/flutter_build.d
+/windows/flutter/flutter_plugins.d
+/windows/app.exe
+*.user
+*.suo
+*.sln.docstates
+*.vcxproj.filters
+*.vcxproj.user
+
+# Linux
+/linux/flutter/ephemeral/
+
+# macOS
+/macos/Flutter/ephemeral/
