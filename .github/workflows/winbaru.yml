@@ -35,18 +35,14 @@ jobs:
       - name: Build Flutter application
         run: flutter build windows --release
 
-      # 6. Menginstal Inno Setup
+      # 6. Membuat installer .exe menggunakan Inno Setup (menggunakan action alternatif)
       # --- BAGIAN YANG DIPERBAIKI ---
-      - name: Setup Inno Setup
-        uses: crazy-max/ghaction-inno-setup@v4.0.0
+      - name: Compile installer with Inno Setup
+        uses: Miniong/ghaction-inno-setup@v1.0.2
         with:
-          version: "6.2.2"
+          script-file: installer_script.iss
 
-      # 7. Membuat installer .exe menggunakan Inno Setup
-      - name: Compile installer script
-        run: iscc "installer_script.iss"
-
-      # 8. Mengunggah file setup.exe sebagai artifact yang bisa diunduh
+      # 7. Mengunggah file setup.exe sebagai artifact yang bisa diunduh
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
