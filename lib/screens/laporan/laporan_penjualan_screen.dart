@@ -89,29 +89,46 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Laporan Penjualan')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _buildFilterSection(),
-                _buildSummarySection(),
-                const Divider(thickness: 2),
-                // --- BAGIAN YANG DIPERBAIKI ---
-                // Menggunakan layout yang benar untuk menampilkan tabel yang bisa di-scroll
-                Expanded(
-                  child: _laporanData.isEmpty
-                      ? const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'))
-                      : SingleChildScrollView(
-                          // Scroll vertikal untuk seluruh area tabel
-                          child: SingleChildScrollView(
-                            // Scroll horizontal untuk tabel jika kolomnya banyak
-                            scrollDirection: Axis.horizontal,
-                            child: _buildDataTable(),
-                          ),
-                        ),
-                ),
-              ],
-            ),
+      body: Column(
+        children: [
+          _buildFilterSection(),
+          _buildSummarySection(),
+          const Divider(thickness: 2),
+          // --- BAGIAN YANG DIPERBAIKI SECARA TOTAL ---
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _laporanData.isEmpty
+                    ? const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'))
+                    // Menggunakan ListView.builder yang lebih efisien dan aman
+                    : ListView.builder(
+                        itemCount: _laporanData.length,
+                        itemBuilder: (context, index) {
+                          final row = _laporanData[index];
+                          // Parsing data dengan aman
+                          final timestamp = DateTime.tryParse(row['timestamp'].toString()) ?? DateTime.now();
+                          final currencyFormat = NumberFormat.currency(locale: 'id_ID', decimalDigits: 0, symbol: 'Rp');
+                          final harga = (row['harga_item'] as num?)?.toDouble() ?? 0.0;
+                          final jumlah = (row['jumlah'] as num?)?.toInt() ?? 0;
+
+                          // Menampilkan setiap item transaksi sebagai Card
+                          return Card(
+                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                            child: ListTile(
+                              leading: Text("ID:${row['transaksi_id']}"),
+                              title: Text(row['nama_produk'].toString()),
+                              subtitle: Text(DateFormat('dd MMM yyyy, HH:mm').format(timestamp)),
+                              trailing: Text(
+                                currencyFormat.format(harga * jumlah),
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -165,35 +182,5 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
           ],
         ),
       );
-  }
-
-  Widget _buildDataTable() {
-    final currencyFormat = NumberFormat.currency(locale: 'id_ID', decimalDigits: 0, symbol: 'Rp');
-    return DataTable(
-      columnSpacing: 20,
-      columns: const [
-        DataColumn(label: Text('Waktu')),
-        DataColumn(label: Text('ID Trans.')),
-        DataColumn(label: Text('Item')),
-        DataColumn(label: Text('Kategori')),
-        DataColumn(label: Text('Qty')),
-        DataColumn(label: Text('Harga Item')),
-        DataColumn(label: Text('Total Trans.')),
-        DataColumn(label: Text('Metode')),
-      ],
-      rows: _laporanData.map((row) {
-        final timestamp = DateTime.parse(row['timestamp']);
-        return DataRow(cells: [
-          DataCell(Text(DateFormat('dd-MM-yy HH:mm').format(timestamp))),
-          DataCell(Text(row['transaksi_id'].toString())),
-          DataCell(Text(row['nama_produk'].toString())),
-          DataCell(Text(row['nama_kategori']?.toString() ?? (row['is_quick_sale'] == 1 ? 'Quick Sale' : '-'))),
-          DataCell(Text(row['jumlah'].toString())),
-          DataCell(Text(currencyFormat.format(row['harga_item']))),
-          DataCell(Text(currencyFormat.format(row['total']))),
-          DataCell(Text(row['metode_pembayaran'].toString())),
-        ]);
-      }).toList(),
-    );
   }
 }

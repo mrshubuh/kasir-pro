@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:kasir_pro/screens/laporan_penjualan_screen.dart';
-import 'package:kasir_pro/screens/pengaturan_screen.dart';
-import 'package:kasir_pro/screens/stok_opname_screen.dart';
-import 'package:kasir_pro/screens/transaksi_screen.dart';
+import 'package:kasir_pro/screens/laporan/laporan_penjualan_screen.dart';
+import 'package:kasir_pro/screens/pengaturan/pengaturan_screen.dart';
+import 'package:kasir_pro/screens/stok/stok_opname_screen.dart';
+import 'package:kasir_pro/screens/transaksi/transaksi_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
