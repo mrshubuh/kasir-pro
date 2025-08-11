@@ -47,42 +47,49 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
 
   void _fetchLaporan() async {
     setState(() => _isLoading = true);
+    try {
+      final tglAwal = DateTime(_tanggalAwal.year, _tanggalAwal.month, _tanggalAwal.day, 0, 0, 0);
+      final tglAkhir = DateTime(_tanggalAkhir.year, _tanggalAkhir.month, _tanggalAkhir.day, 23, 59, 59);
+      
+      final tglAwalIso = tglAwal.toIso8601String();
+      final tglAkhirIso = tglAkhir.toIso8601String();
+      
+      final data = await _db.getLaporan(tglAwalIso, tglAkhirIso);
 
-    final tglAwal = DateTime(_tanggalAwal.year, _tanggalAwal.month, _tanggalAwal.day, 0, 0, 0);
-    final tglAkhir = DateTime(_tanggalAkhir.year, _tanggalAkhir.month, _tanggalAkhir.day, 23, 59, 59);
-    
-    final tglAwalIso = tglAwal.toIso8601String();
-    final tglAkhirIso = tglAkhir.toIso8601String();
-    
-    final data = await _db.getLaporan(tglAwalIso, tglAkhirIso);
+      double total = 0;
+      double tunai = 0;
+      double transfer = 0;
+      
+      final Set<int> processedTxIds = {};
 
-    double total = 0;
-    double tunai = 0;
-    double transfer = 0;
-    
-    final Set<int> processedTxIds = {};
-
-    for (var row in data) {
-      final int transaksiId = row['transaksi_id'];
-      if (!processedTxIds.contains(transaksiId)) {
-        final double txTotal = row['total'];
-        total += txTotal;
-        if (row['metode_pembayaran'] == 'Tunai') {
-            tunai += txTotal;
-        } else if (row['metode_pembayaran'] == 'Transfer') {
-            transfer += txTotal;
+      for (var row in data) {
+        final int transaksiId = row['transaksi_id'];
+        if (!processedTxIds.contains(transaksiId)) {
+          final double txTotal = (row['total'] as num?)?.toDouble() ?? 0.0;
+          total += txTotal;
+          if (row['metode_pembayaran'] == 'Tunai') {
+              tunai += txTotal;
+          } else if (row['metode_pembayaran'] == 'Transfer') {
+              transfer += txTotal;
+          }
+          processedTxIds.add(transaksiId);
         }
-        processedTxIds.add(transaksiId);
       }
-    }
 
-    setState(() {
-      _laporanData = data;
-      _totalPenjualan = total;
-      _totalTunai = tunai;
-      _totalTransfer = transfer;
-      _isLoading = false;
-    });
+      setState(() {
+        _laporanData = data;
+        _totalPenjualan = total;
+        _totalTunai = tunai;
+        _totalTransfer = transfer;
+      });
+    } catch (e) {
+      // Menampilkan pesan error jika pengambilan data gagal
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Gagal memuat laporan: $e"), backgroundColor: Colors.red),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -96,39 +103,51 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
           const Divider(thickness: 2),
           // --- BAGIAN YANG DIPERBAIKI SECARA TOTAL ---
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _laporanData.isEmpty
-                    ? const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'))
-                    // Menggunakan ListView.builder yang lebih efisien dan aman
-                    : ListView.builder(
-                        itemCount: _laporanData.length,
-                        itemBuilder: (context, index) {
-                          final row = _laporanData[index];
-                          // Parsing data dengan aman
-                          final timestamp = DateTime.tryParse(row['timestamp'].toString()) ?? DateTime.now();
-                          final currencyFormat = NumberFormat.currency(locale: 'id_ID', decimalDigits: 0, symbol: 'Rp');
-                          final harga = (row['harga_item'] as num?)?.toDouble() ?? 0.0;
-                          final jumlah = (row['jumlah'] as num?)?.toInt() ?? 0;
-
-                          // Menampilkan setiap item transaksi sebagai Card
-                          return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            child: ListTile(
-                              leading: Text("ID:${row['transaksi_id']}"),
-                              title: Text(row['nama_produk'].toString()),
-                              subtitle: Text(DateFormat('dd MMM yyyy, HH:mm').format(timestamp)),
-                              trailing: Text(
-                                currencyFormat.format(harga * jumlah),
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+            child: _buildContent(), // Memanggil fungsi baru untuk konten
           ),
         ],
       ),
+    );
+  }
+
+  // Fungsi baru untuk membangun konten utama (loading, kosong, atau daftar)
+  Widget _buildContent() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_laporanData.isEmpty) {
+      return const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'));
+    }
+
+    // Menggunakan ListView.builder yang lebih efisien dan aman
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 16),
+      itemCount: _laporanData.length,
+      itemBuilder: (context, index) {
+        final row = _laporanData[index];
+        // Parsing data dengan aman
+        final timestamp = DateTime.tryParse(row['timestamp'].toString()) ?? DateTime.now();
+        final currencyFormat = NumberFormat.currency(locale: 'id_ID', decimalDigits: 0, symbol: 'Rp');
+        final harga = (row['harga_item'] as num?)?.toDouble() ?? 0.0;
+        final jumlah = (row['jumlah'] as num?)?.toInt() ?? 0;
+
+        // Menampilkan setiap item transaksi sebagai Card
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: CircleAvatar(
+              child: Text(row['transaksi_id'].toString()),
+            ),
+            title: Text(row['nama_produk'].toString()),
+            subtitle: Text(DateFormat('dd MMM yyyy, HH:mm').format(timestamp)),
+            trailing: Text(
+              currencyFormat.format(harga * jumlah),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+            ),
+          ),
+        );
+      },
     );
   }
 

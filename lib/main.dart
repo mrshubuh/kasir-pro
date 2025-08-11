@@ -33,7 +33,7 @@ class KasirProApp extends StatelessWidget {
             ),
           ),
         ),
-        appBarTheme: AppBarTheme(
+        appBarTheme: const AppBarTheme(
           backgroundColor: Colors.teal,
           foregroundColor: Colors.white,
           elevation: 2,

@@ -22,7 +22,7 @@ class _StokOpnameScreenState extends State<StokOpnameScreen> {
   bool _isLoading = true;
   
   // Map untuk mengelompokkan produk berdasarkan ID kategori
-  Map<int?, List<Produk>> _groupedProduk = {};
+  final Map<int?, List<Produk>> _groupedProduk = {};
 
   final _namaController = TextEditingController();
   final _hargaController = TextEditingController();
@@ -351,8 +351,8 @@ class _StokOpnameScreenState extends State<StokOpnameScreen> {
                 ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showForm(),
-        child: const Icon(Icons.add),
         tooltip: 'Tambah Produk Baru',
+        child: const Icon(Icons.add),
       ),
     );
   }

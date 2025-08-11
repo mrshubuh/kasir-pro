@@ -19,7 +19,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
   
   List<Kategori> _kategoriList = [];
   List<Produk> _produkList = [];
-  List<ItemKeranjang> _keranjang = [];
+  final List<ItemKeranjang> _keranjang = [];
   Map<String, String> _pengaturan = {};
 
   Kategori? _selectedKategori;

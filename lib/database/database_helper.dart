@@ -168,7 +168,7 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getLaporan(String tglAwalIso, String tglAkhirIso) async {
     Database db = await database;
     // --- QUERY DIPERBAIKI ---
-    final String query = '''
+    const String query = '''
       SELECT
         t.id AS transaksi_id,
         t.timestamp,
