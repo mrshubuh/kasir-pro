@@ -38,7 +38,7 @@ jobs:
       # 6. Menginstal Inno Setup
       # --- BAGIAN YANG DIPERBAIKI ---
       - name: Setup Inno Setup
-        uses: crazy-max/ghaction-inno-setup@v4
+        uses: crazy-max/ghaction-inno-setup@v4.0.0
         with:
           version: "6.2.2"
 
