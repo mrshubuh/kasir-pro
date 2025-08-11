@@ -89,26 +89,29 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Laporan Penjualan')),
-      body: Column(
-        children: [
-          _buildFilterSection(),
-          _buildSummarySection(),
-          const Divider(thickness: 2),
-          // --- BAGIAN YANG DIPERBAIKI ---
-          // Mengganti SingleChildScrollView dengan widget yang benar untuk tabel
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _laporanData.isEmpty
-                    ? const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'))
-                    : InteractiveViewer( // Membuat tabel bisa di-zoom dan di-geser
-                        constrained: false,
-                        scaleEnabled: false,
-                        child: _buildDataTable(),
-                      ),
-          ),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                _buildFilterSection(),
+                _buildSummarySection(),
+                const Divider(thickness: 2),
+                // --- BAGIAN YANG DIPERBAIKI ---
+                // Menggunakan layout yang benar untuk menampilkan tabel yang bisa di-scroll
+                Expanded(
+                  child: _laporanData.isEmpty
+                      ? const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'))
+                      : SingleChildScrollView(
+                          // Scroll vertikal untuk seluruh area tabel
+                          child: SingleChildScrollView(
+                            // Scroll horizontal untuk tabel jika kolomnya banyak
+                            scrollDirection: Axis.horizontal,
+                            child: _buildDataTable(),
+                          ),
+                        ),
+                ),
+              ],
+            ),
     );
   }
 
