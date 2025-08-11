@@ -48,12 +48,9 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
   void _fetchLaporan() async {
     setState(() => _isLoading = true);
 
-    // --- LOGIKA TANGGAL DIPERBAIKI ---
-    // Membuat rentang tanggal yang lengkap dari awal hari hingga akhir hari
     final tglAwal = DateTime(_tanggalAwal.year, _tanggalAwal.month, _tanggalAwal.day, 0, 0, 0);
     final tglAkhir = DateTime(_tanggalAkhir.year, _tanggalAkhir.month, _tanggalAkhir.day, 23, 59, 59);
     
-    // Mengonversi ke format ISO 8601 yang sesuai dengan data di database
     final tglAwalIso = tglAwal.toIso8601String();
     final tglAkhirIso = tglAkhir.toIso8601String();
     
@@ -88,7 +85,6 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
     });
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,15 +94,18 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
           _buildFilterSection(),
           _buildSummarySection(),
           const Divider(thickness: 2),
+          // --- BAGIAN YANG DIPERBAIKI ---
+          // Mengganti SingleChildScrollView dengan widget yang benar untuk tabel
           Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator())
-              : _laporanData.isEmpty 
-                ? const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'))
-                : SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: _buildDataTable(),
-                  )
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _laporanData.isEmpty
+                    ? const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'))
+                    : InteractiveViewer( // Membuat tabel bisa di-zoom dan di-geser
+                        constrained: false,
+                        scaleEnabled: false,
+                        child: _buildDataTable(),
+                      ),
           ),
         ],
       ),
