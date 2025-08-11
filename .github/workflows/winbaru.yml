@@ -36,8 +36,9 @@ jobs:
         run: flutter build windows --release
 
       # 6. Menginstal Inno Setup
+      # --- BAGIAN YANG DIPERBAIKI ---
       - name: Setup Inno Setup
-        uses: crazy-max/ghaction-inno-setup@v3
+        uses: crazy-max/ghaction-inno-setup@v4
         with:
           version: "6.2.2"
 
