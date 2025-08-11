@@ -1,0 +1,51 @@
+# Nama workflow yang akan muncul di tab "Actions" di GitHub
+name: Build Windows EXE
+
+# Pemicu: Workflow ini akan berjalan setiap kali ada 'push' ke branch 'main'
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  # Job untuk membuat aplikasi Windows
+  build-windows:
+    # Menggunakan mesin virtual Windows versi terbaru
+    runs-on: windows-latest
+
+    steps:
+      # 1. Mengunduh kode dari repository Anda
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Menginstal dan mengatur Flutter SDK
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable' # Menggunakan channel Flutter yang stabil
+
+      # 3. Mengaktifkan dukungan build untuk desktop Windows
+      - name: Enable Windows desktop support
+        run: flutter config --enable-windows-desktop
+
+      # 4. Mengunduh semua paket yang dibutuhkan proyek
+      - name: Get dependencies
+        run: flutter pub get
+
+      # 5. Membuat file .exe dan semua file pendukungnya dalam mode release
+      - name: Build Windows executable
+        run: flutter build windows --release
+
+      # 6. Mengarsipkan (zip) seluruh folder hasil build agar mudah diunduh
+      - name: Archive release artifacts
+        run: |
+          $RELEASE_PATH = "build/windows/runner/Release"
+          $ZIP_FILE = "kasir-pro-windows.zip"
+          Compress-Archive -Path $RELEASE_PATH -DestinationPath $ZIP_FILE
+
+      # 7. Mengunggah file zip sebagai artifact yang bisa diunduh
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kasir-pro-windows-build
+          path: kasir-pro-windows.zip
+
