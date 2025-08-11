@@ -36,11 +36,9 @@ jobs:
         run: flutter build windows --release
 
       # 6. Mengarsipkan (zip) seluruh folder hasil build agar mudah diunduh
+      # --- BAGIAN YANG DIPERBAIKI ---
       - name: Archive release artifacts
-        run: |
-          $RELEASE_PATH = "build/windows/runner/Release"
-          $ZIP_FILE = "kasir-pro-windows.zip"
-          Compress-Archive -Path $RELEASE_PATH -DestinationPath $ZIP_FILE
+        run: Compress-Archive -Path build/windows/runner/Release -DestinationPath kasir-pro-windows.zip
 
       # 7. Mengunggah file zip sebagai artifact yang bisa diunduh
       - name: Upload build artifact
