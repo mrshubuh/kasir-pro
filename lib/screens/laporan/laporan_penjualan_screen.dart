@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kasir_pro/database/database_helper.dart';
-import 'package:sqflite/sqflite.dart';
 
 class LaporanPenjualanScreen extends StatefulWidget {
   const LaporanPenjualanScreen({super.key});
@@ -42,7 +41,6 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
         } else {
           _tanggalAkhir = picked;
         }
-        _errorMessage = null; // Reset error saat tanggal berubah
       });
       _fetchLaporan();
     }
@@ -55,34 +53,36 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
     });
     
     try {
-      // Debug print untuk memastikan tanggal benar
-      print('Mengambil laporan dari ${_tanggalAwal} sampai ${_tanggalAkhir}');
+      // ---!!!--- TES DIAGNOSTIK ---!!!---
+      // Menunggu 2 detik untuk simulasi loading, lalu menyediakan data palsu.
+      // Panggilan ke database dinonaktifkan sementara.
+      await Future.delayed(const Duration(seconds: 2));
+
+      final List<Map<String, dynamic>> fakeData = [
+        {
+          'transaksi_id': 101,
+          'timestamp': DateTime.now().toIso8601String(),
+          'total': 50000.0,
+          'metode_pembayaran': 'Tunai',
+          'nama_produk': 'Produk Tes 1 (Data Palsu)',
+          'harga_item': 25000.0,
+          'jumlah': 2,
+        },
+        {
+          'transaksi_id': 102,
+          'timestamp': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
+          'total': 30000.0,
+          'metode_pembayaran': 'Transfer',
+          'nama_produk': 'Produk Tes 2 (Data Palsu)',
+          'harga_item': 30000.0,
+          'jumlah': 1,
+        },
+      ];
       
-      final tglAwal = DateTime(_tanggalAwal.year, _tanggalAwal.month, _tanggalAwal.day, 0, 0, 0);
-      final tglAkhir = DateTime(_tanggalAkhir.year, _tanggalAkhir.month, _tanggalAkhir.day, 23, 59, 59);
-      
-      final tglAwalIso = tglAwal.toIso8601String();
-      final tglAkhirIso = tglAkhir.toIso8601String();
-      
-      print('ISO dates: $tglAwalIso to $tglAkhirIso');
-      
-      // Test database connection terlebih dahulu
-      final db = await _db.database;
-      print('Database connected: ${db.path}');
-      
-      // Cek apakah ada transaksi di database sama sekali
-      final allTransactions = await db.query('transaksi', limit: 5);
-      print('Total transaksi di database: ${allTransactions.length}');
-      if (allTransactions.isNotEmpty) {
-        print('Sample transaksi: ${allTransactions.first}');
-      }
-      
-      final data = await _db.getLaporan(tglAwalIso, tglAkhirIso);
-      print('Data diterima: ${data.length} rows');
-      
-      if (data.isNotEmpty) {
-        print('Sample data: ${data.first}');
-      }
+      final data = fakeData; // Menggunakan data palsu
+      // final data = await _db.getLaporan(tglAwalIso, tglAkhirIso); // Panggilan asli dinonaktifkan
+      // ---!!!--- AKHIR DARI TES DIAGNOSTIK ---!!!---
+
 
       double total = 0;
       double tunai = 0;
@@ -91,23 +91,18 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
       final Set<int> processedTxIds = {};
 
       for (var row in data) {
-        print('Processing row: $row'); // Debug setiap row
-        final int transaksiId = row['transaksi_id'] ?? 0;
+        final int transaksiId = row['transaksi_id'];
         if (!processedTxIds.contains(transaksiId)) {
           final double txTotal = (row['total'] as num?)?.toDouble() ?? 0.0;
           total += txTotal;
-          
-          final metodePembayaran = row['metode_pembayaran']?.toString() ?? '';
-          if (metodePembayaran == 'Tunai') {
-            tunai += txTotal;
-          } else if (metodePembayaran == 'Transfer') {
-            transfer += txTotal;
+          if (row['metode_pembayaran'] == 'Tunai') {
+              tunai += txTotal;
+          } else if (row['metode_pembayaran'] == 'Transfer') {
+              transfer += txTotal;
           }
           processedTxIds.add(transaksiId);
         }
       }
-
-      print('Totals calculated - Total: $total, Tunai: $tunai, Transfer: $transfer');
 
       setState(() {
         _laporanData = data;
@@ -115,137 +110,19 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
         _totalTunai = tunai;
         _totalTransfer = transfer;
       });
-    } catch (e, stackTrace) {
-      print('Error fetching laporan: $e');
-      print('Stack trace: $stackTrace');
-      setState(() {
-        _errorMessage = 'Gagal memuat laporan: $e';
-        _laporanData = [];
-        _totalPenjualan = 0;
-        _totalTunai = 0;
-        _totalTransfer = 0;
-      });
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Gagal memuat laporan: $e"), 
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _addDummyData() async {
-    try {
-      final db = await _db.database;
-      
-      // Tambahkan kategori dummy jika belum ada
-      await db.insert('kategori', {'nama': 'Makanan'}, conflictAlgorithm: ConflictAlgorithm.ignore);
-      await db.insert('kategori', {'nama': 'Minuman'}, conflictAlgorithm: ConflictAlgorithm.ignore);
-      
-      // Tambahkan produk dummy
-      await db.insert('produk', {
-        'nama': 'Nasi Goreng',
-        'harga': 15000,
-        'stok': 50,
-        'kategori_id': 1
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-      
-      await db.insert('produk', {
-        'nama': 'Es Teh',
-        'harga': 5000,
-        'stok': 100,
-        'kategori_id': 2
-      }, conflictAlgorithm: ConflictAlgorithm.ignore);
-
-      // Tambahkan transaksi dummy untuk hari ini
-      final now = DateTime.now();
-      final transaksi1 = {
-        'timestamp': now.subtract(const Duration(hours: 2)).toIso8601String(),
-        'total': 20000.0,
-        'metode_pembayaran': 'Tunai',
-        'diskon': 0.0,
-        'pajak': 0.0,
-      };
-
-      final transaksi2 = {
-        'timestamp': now.subtract(const Duration(hours: 1)).toIso8601String(),
-        'total': 15000.0,
-        'metode_pembayaran': 'Transfer',
-        'diskon': 0.0,
-        'pajak': 0.0,
-      };
-
-      final txId1 = await db.insert('transaksi', transaksi1);
-      final txId2 = await db.insert('transaksi', transaksi2);
-
-      // Tambahkan item transaksi
-      await db.insert('item_transaksi', {
-        'transaksi_id': txId1,
-        'produk_id': 1,
-        'nama_produk': 'Nasi Goreng',
-        'harga': 15000.0,
-        'jumlah': 1,
-        'is_quick_sale': 0,
-      });
-
-      await db.insert('item_transaksi', {
-        'transaksi_id': txId1,
-        'produk_id': 2,
-        'nama_produk': 'Es Teh',
-        'harga': 5000.0,
-        'jumlah': 1,
-        'is_quick_sale': 0,
-      });
-
-      await db.insert('item_transaksi', {
-        'transaksi_id': txId2,
-        'produk_id': 1,
-        'nama_produk': 'Nasi Goreng',
-        'harga': 15000.0,
-        'jumlah': 1,
-        'is_quick_sale': 0,
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Data dummy berhasil ditambahkan!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Refresh data
-      _fetchLaporan();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal menambah data dummy: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() {
+        _errorMessage = "Terjadi kesalahan: ${e.toString()}";
+      });
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Laporan Penjualan'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _fetchLaporan,
-            tooltip: 'Refresh Data',
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Laporan Penjualan')),
       body: Column(
         children: [
           _buildFilterSection(),
@@ -261,70 +138,24 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
 
   Widget _buildContent() {
     if (_isLoading) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Memuat data...'),
-          ],
-        ),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_errorMessage != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              _errorMessage!,
-              style: const TextStyle(color: Colors.red),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _fetchLaporan,
-              child: const Text('Coba Lagi'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            _errorMessage!,
+            style: const TextStyle(color: Colors.red, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     }
 
     if (_laporanData.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text(
-              'Tidak ada data penjualan',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'untuk rentang tanggal ${DateFormat('dd MMM yyyy').format(_tanggalAwal)} - ${DateFormat('dd MMM yyyy').format(_tanggalAkhir)}',
-              style: const TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _addDummyData,
-              icon: const Icon(Icons.add_shopping_cart),
-              label: const Text('Tambah Data Dummy'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      );
+      return const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'));
     }
 
     return ListView.builder(
@@ -332,46 +163,23 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
       itemCount: _laporanData.length,
       itemBuilder: (context, index) {
         final row = _laporanData[index];
-        
-        // Parsing data dengan null safety
-        final timestamp = DateTime.tryParse(row['timestamp']?.toString() ?? '') ?? DateTime.now();
-        final currencyFormat = NumberFormat.currency(locale: 'id_ID', decimalDigits: 0, symbol: 'Rp ');
+        final timestamp = DateTime.tryParse(row['timestamp'].toString()) ?? DateTime.now();
+        final currencyFormat = NumberFormat.currency(locale: 'id_ID', decimalDigits: 0, symbol: 'Rp');
         final harga = (row['harga_item'] as num?)?.toDouble() ?? 0.0;
         final jumlah = (row['jumlah'] as num?)?.toInt() ?? 0;
-        final namaProduk = row['nama_produk']?.toString() ?? 'Produk Tidak Diketahui';
-        final transaksiId = row['transaksi_id']?.toString() ?? '0';
-        final metodePembayaran = row['metode_pembayaran']?.toString() ?? '';
 
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: Colors.blue,
-              child: Text(
-                transaksiId,
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
+              child: Text(row['transaksi_id'].toString()),
             ),
-            title: Text(namaProduk),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(DateFormat('dd MMM yyyy, HH:mm').format(timestamp)),
-                Text(
-                  'Qty: $jumlah ${metodePembayaran.isNotEmpty ? '• $metodePembayaran' : ''}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-              ],
-            ),
+            title: Text(row['nama_produk'].toString()),
+            subtitle: Text(DateFormat('dd MMM yyyy, HH:mm').format(timestamp)),
             trailing: Text(
               currencyFormat.format(harga * jumlah),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold, 
-                color: Colors.green,
-                fontSize: 14,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
             ),
-            isThreeLine: true,
           ),
         );
       },
@@ -385,27 +193,9 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => _pilihTanggal(context, true),
-              icon: const Icon(Icons.calendar_today),
-              label: Text('Dari: ${formatter.format(_tanggalAwal)}'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => _pilihTanggal(context, false),
-              icon: const Icon(Icons.calendar_today),
-              label: Text('Sampai: ${formatter.format(_tanggalAkhir)}'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-            ),
-          ),
+          TextButton(onPressed: () => _pilihTanggal(context, true), child: Text('Dari: ${formatter.format(_tanggalAwal)}')),
+          const SizedBox(width: 20),
+          TextButton(onPressed: () => _pilihTanggal(context, false), child: Text('Sampai: ${formatter.format(_tanggalAkhir)}')),
         ],
       ),
     );
@@ -416,17 +206,12 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Card(
-        elevation: 4,
-        color: Colors.blue.shade50,
+        elevation: 2,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              _buildSummaryRow(
-                'Total Penjualan:', 
-                currencyFormat.format(_totalPenjualan), 
-                isHeader: true
-              ),
+              _buildSummaryRow('Total Penjualan:', currencyFormat.format(_totalPenjualan), isHeader: true),
               const Divider(),
               _buildSummaryRow('Total Tunai:', currencyFormat.format(_totalTunai)),
               _buildSummaryRow('Total Transfer:', currencyFormat.format(_totalTransfer)),
@@ -438,23 +223,18 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
   }
   
   Widget _buildSummaryRow(String title, String value, {bool isHeader = false}) {
-    final style = isHeader 
-        ? Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: Colors.blue.shade800,
-          )
-        : Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-          );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title, style: style),
-          Text(value, style: style),
-        ],
-      ),
-    );
+      final style = isHeader 
+          ? Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
+          : Theme.of(context).textTheme.titleMedium;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(title, style: style),
+            Text(value, style: style),
+          ],
+        ),
+      );
   }
 }
