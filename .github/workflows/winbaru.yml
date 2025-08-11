@@ -1,5 +1,5 @@
 # Nama workflow yang akan muncul di tab "Actions" di GitHub
-name: Build Windows EXE
+name: Build Windows Installer
 
 # Pemicu: Workflow ini akan berjalan setiap kali ada 'push' ke branch 'main'
 on:
@@ -7,8 +7,8 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # Job untuk membuat aplikasi Windows
-  build-windows:
+  # Job untuk membuat installer Windows
+  build-windows-installer:
     # Menggunakan mesin virtual Windows versi terbaru
     runs-on: windows-latest
 
@@ -31,18 +31,22 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # 5. Membuat file .exe dan semua file pendukungnya dalam mode release
-      - name: Build Windows executable
+      # 5. Membuat build aplikasi Flutter (versi portable)
+      - name: Build Flutter application
         run: flutter build windows --release
 
-      # 6. Mengarsipkan (zip) seluruh folder hasil build agar mudah diunduh
-      # --- PATH YANG DIPERBAIKI ---
-      - name: Archive release artifacts
-        run: Compress-Archive -Path build/windows/x64/runner/Release -DestinationPath kasir-pro-windows.zip
+      # 6. Menginstal Inno Setup secara langsung
+      # --- BAGIAN YANG DIPERBAIKI ---
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
 
-      # 7. Mengunggah file zip sebagai artifact yang bisa diunduh
-      - name: Upload build artifact
+      # 7. Membuat installer .exe menggunakan Inno Setup
+      - name: Compile installer script
+        run: iscc "installer_script.iss"
+
+      # 8. Mengunggah file setup.exe sebagai artifact yang bisa diunduh
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kasir-pro-windows-build
-          path: kasir-pro-windows.zip
+          name: kasir-pro-installer
+          path: Output/kasir-pro-setup.exe
