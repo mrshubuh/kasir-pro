@@ -12,8 +12,8 @@ dependencies:
     sdk: flutter
 
   # Database
-  sqflite_common_ffi: ^2.3.3 # Untuk Windows & Desktop
-  sqflite: ^2.3.3 # Untuk Android & iOS
+  sqflite_common_ffi: ^2.3.3
+  sqflite: ^2.3.3
   path_provider: ^2.1.3
   path: ^1.9.0
 
@@ -27,9 +27,9 @@ dependencies:
   csv: ^6.0.0
 
   # Printer
-  esc_pos_utils_plus: ^2.0.4
-  flutter_blue_plus: ^1.31.20 # Sesuai permintaan (untuk Bluetooth)
-  # Catatan: Untuk USB direct di Windows, mungkin perlu pendekatan lain seperti 'usb_serial'.
+  esc_pos_utils_plus: ^2.0.4    # Versi diperbarui untuk stabilitas
+  flutter_blue_plus: ^1.31.20  # Untuk printer Bluetooth
+  flutter_usb_printer: ^0.1.0+1  # Untuk printer USB
 
 dev_dependencies:
   flutter_test:
@@ -40,4 +40,4 @@ flutter:
   uses-material-design: true
 
   # assets:
-  #   - assets/logo/ # Buat folder ini jika Anda ingin menambahkan logo nanti
+  #   - assets/logo.png

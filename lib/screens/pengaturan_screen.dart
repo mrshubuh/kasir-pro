@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kasir_pro/database/database_helper.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-
+import 'package:flutter_usb_printer/flutter_usb_printer.dart';
 
 class PengaturanScreen extends StatefulWidget {
   const PengaturanScreen({super.key});
@@ -21,13 +21,18 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
 
   String _logoPath = '';
   bool _izinkanStokKosong = false;
+  String _printerType = 'none'; // 'none', 'bluetooth', 'usb'
 
   // State untuk Printer Bluetooth
-  BluetoothDevice? _selectedDevice;
-  String _selectedDeviceName = '';
+  BluetoothDevice? _selectedBtDevice;
+  String _selectedBtDeviceName = '';
   List<ScanResult> _scanResults = [];
-  bool _isScanning = false;
+  bool _isScanningBt = false;
 
+  // State untuk Printer USB
+  List<Map<String, dynamic>> _usbDevices = [];
+  Map<String, dynamic>? _selectedUsbDevice;
+  bool _isScanningUsb = false;
 
   @override
   void initState() {
@@ -44,12 +49,21 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
       _diskonController.text = pengaturan['diskon_default'] ?? '0';
       _pajakController.text = pengaturan['pajak_default'] ?? '0';
       _izinkanStokKosong = (pengaturan['izinkan_stok_kosong'] ?? 'false') == 'true';
-      
-      // Muat info printer yang tersimpan
-      final address = pengaturan['printer_address'] ?? '';
-      if(address.isNotEmpty) {
-        _selectedDevice = BluetoothDevice.fromId(address);
-        _selectedDeviceName = pengaturan['printer_name'] ?? 'Perangkat Tersimpan';
+      _printerType = pengaturan['printer_type'] ?? 'none';
+
+      final btAddress = pengaturan['bt_printer_address'] ?? '';
+      if (btAddress.isNotEmpty) {
+        _selectedBtDevice = BluetoothDevice.fromId(btAddress);
+        _selectedBtDeviceName = pengaturan['bt_printer_name'] ?? 'Perangkat BT Tersimpan';
+      }
+
+      final vendorId = pengaturan['usb_vendor_id'] ?? '';
+      if (vendorId.isNotEmpty) {
+        _selectedUsbDevice = {
+          'vendorId': vendorId,
+          'productId': pengaturan['usb_product_id'] ?? '',
+          'deviceName': pengaturan['usb_printer_name'] ?? 'Perangkat USB Tersimpan',
+        };
       }
     });
   }
@@ -62,9 +76,16 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     await _db.updatePengaturan('pajak_default', _pajakController.text);
     await _db.updatePengaturan('izinkan_stok_kosong', _izinkanStokKosong.toString());
     
-    if (_selectedDevice != null) {
-      await _db.updatePengaturan('printer_address', _selectedDevice!.remoteId.toString());
-      await _db.updatePengaturan('printer_name', _selectedDevice!.platformName.isNotEmpty ? _selectedDevice!.platformName : 'Unknown Device');
+    await _db.updatePengaturan('printer_type', _printerType);
+
+    if (_selectedBtDevice != null) {
+      await _db.updatePengaturan('bt_printer_address', _selectedBtDevice!.remoteId.toString());
+      await _db.updatePengaturan('bt_printer_name', _selectedBtDevice!.platformName.isNotEmpty ? _selectedBtDevice!.platformName : 'Unknown BT Device');
+    }
+    if (_selectedUsbDevice != null) {
+      await _db.updatePengaturan('usb_vendor_id', _selectedUsbDevice!['vendorId'].toString());
+      await _db.updatePengaturan('usb_product_id', _selectedUsbDevice!['productId'].toString());
+      await _db.updatePengaturan('usb_printer_name', _selectedUsbDevice!['deviceName'].toString());
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -82,30 +103,36 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     }
   }
 
-  void _scanForPrinters() async {
-    setState(() => _isScanning = true);
+  void _scanBtPrinters() async {
+    setState(() => _isScanningBt = true);
     try {
-        // Mulai scan selama 5 detik
-        await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-        
-        // Dengarkan hasil scan
-        FlutterBluePlus.scanResults.listen((results) {
-            setState(() {
-                _scanResults = results;
-            });
-        });
-    } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error scanning: $e'), backgroundColor: Colors.red),
-        );
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+      FlutterBluePlus.scanResults.listen((results) {
+        setState(() => _scanResults = results);
+      });
     } finally {
-        // Hentikan loading indicator setelah scan selesai
-        Future.delayed(const Duration(seconds: 5), () {
-            setState(() => _isScanning = false);
-        });
+      Future.delayed(const Duration(seconds: 5), () {
+        FlutterBluePlus.stopScan();
+        setState(() => _isScanningBt = false);
+      });
     }
-}
+  }
 
+  void _scanUsbPrinters() async {
+    setState(() => _isScanningUsb = true);
+    try {
+      var devices = await FlutterUsbPrinter.getUSBDeviceList();
+      setState(() {
+        _usbDevices = devices;
+        _isScanningUsb = false;
+      });
+    } catch (e) {
+      setState(() => _isScanningUsb = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mencari printer USB: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +153,7 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                 TextField(controller: _alamatTokoController, decoration: const InputDecoration(labelText: 'Alamat Toko', border: OutlineInputBorder()), maxLines: 3),
                 const SizedBox(height: 16),
                 _buildLogoPicker(),
+
                 const Divider(height: 40),
 
                 _buildSectionTitle('Pengaturan Transaksi'),
@@ -143,21 +171,20 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
                     });
                   },
                   contentPadding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  tileColor: Colors.grey.shade200,
                 ),
+
                 const Divider(height: 40),
 
                 _buildSectionTitle('Pengaturan Printer Thermal'),
                 const SizedBox(height: 16),
-                _buildPrinterSelector(),
+                _buildPrinterTypeSelector(),
+                if (_printerType == 'bluetooth') _buildBluetoothPrinterSelector(),
+                if (_printerType == 'usb') _buildUsbPrinterSelector(),
 
                 const SizedBox(height: 40),
                 FilledButton(
                   onPressed: _simpanPengaturan,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
+                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                   child: const Text('Simpan Semua Pengaturan'),
                 ),
               ],
@@ -192,9 +219,25 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
     );
   }
 
-  Widget _buildPrinterSelector() {
+  Widget _buildPrinterTypeSelector() {
+    return SegmentedButton<String>(
+      segments: const <ButtonSegment<String>>[
+        ButtonSegment<String>(value: 'none', label: Text('Tidak Ada'),),
+        ButtonSegment<String>(value: 'bluetooth', label: Text('Bluetooth'),),
+        ButtonSegment<String>(value: 'usb', label: Text('USB'),),
+      ],
+      selected: {_printerType},
+      onSelectionChanged: (Set<String> newSelection) {
+        setState(() {
+          _printerType = newSelection.first;
+        });
+      },
+    );
+  }
+
+  Widget _buildBluetoothPrinterSelector() {
     return Card(
-      color: Colors.grey.shade50,
+      margin: const EdgeInsets.only(top: 16),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -205,40 +248,84 @@ class _PengaturanScreenState extends State<PengaturanScreen> {
               children: [
                 const Text('Printer Bluetooth:', style: TextStyle(fontWeight: FontWeight.bold)),
                 TextButton(
-                  onPressed: _isScanning ? null : _scanForPrinters, 
-                  child: _isScanning ? const Text('Mencari...') : const Text('Cari Perangkat')
+                  onPressed: _isScanningBt ? null : _scanBtPrinters,
+                  child: _isScanningBt ? const Text('Mencari...') : const Text('Cari Perangkat'),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-             if (_selectedDevice != null)
+            if (_selectedBtDevice != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text('Terpilih: ${_selectedDeviceName.isNotEmpty ? _selectedDeviceName : _selectedDevice!.remoteId}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                child: Text('Terpilih: $_selectedBtDeviceName', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
               ),
-            if (_isScanning) const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator())),
-            if (_scanResults.isNotEmpty && !_isScanning)
+            if (_isScanningBt) const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator())),
+            if (_scanResults.isNotEmpty && !_isScanningBt)
               SizedBox(
                 height: 150,
                 child: ListView.builder(
-                  shrinkWrap: true,
                   itemCount: _scanResults.length,
                   itemBuilder: (context, index) {
                     final result = _scanResults[index];
                     final deviceName = result.device.platformName;
-                    if (deviceName.isEmpty) return const SizedBox.shrink(); // Sembunyikan perangkat tanpa nama
+                    if (deviceName.isEmpty) return const SizedBox.shrink();
                     return ListTile(
                       title: Text(deviceName),
-                      subtitle: Text(result.device.remoteId.toString()),
                       onTap: () {
                         setState(() {
-                          _selectedDevice = result.device;
-                          _selectedDeviceName = deviceName;
-                          _scanResults.clear(); // Sembunyikan daftar setelah memilih
+                          _selectedBtDevice = result.device;
+                          _selectedBtDeviceName = deviceName;
+                          _scanResults.clear();
                         });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('$deviceName dipilih.')),
-                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUsbPrinterSelector() {
+    return Card(
+      margin: const EdgeInsets.only(top: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Printer USB:', style: TextStyle(fontWeight: FontWeight.bold)),
+                TextButton(
+                  onPressed: _isScanningUsb ? null : _scanUsbPrinters,
+                  child: _isScanningUsb ? const Text('Mencari...') : const Text('Cari Perangkat'),
+                ),
+              ],
+            ),
+            if (_selectedUsbDevice != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text('Terpilih: ${_selectedUsbDevice!['deviceName']}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+              ),
+            if (_isScanningUsb) const Center(child: Padding(padding: EdgeInsets.all(8.0), child: CircularProgressIndicator())),
+            if (_usbDevices.isNotEmpty && !_isScanningUsb)
+              SizedBox(
+                height: 150,
+                child: ListView.builder(
+                  itemCount: _usbDevices.length,
+                  itemBuilder: (context, index) {
+                    final device = _usbDevices[index];
+                    return ListTile(
+                      title: Text(device['deviceName'] ?? 'Unknown USB Device'),
+                      subtitle: Text('Vendor ID: ${device['vendorId']} | Product ID: ${device['productId']}'),
+                      onTap: () {
+                        setState(() {
+                          _selectedUsbDevice = device;
+                          _usbDevices.clear();
+                        });
                       },
                     );
                   },

@@ -8,7 +8,6 @@ import 'package:csv/csv.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 
-
 class StokOpnameScreen extends StatefulWidget {
   const StokOpnameScreen({super.key});
 
@@ -21,6 +20,9 @@ class _StokOpnameScreenState extends State<StokOpnameScreen> {
   List<Produk> _produkList = [];
   List<Kategori> _kategoriList = [];
   bool _isLoading = true;
+  
+  // Map untuk mengelompokkan produk berdasarkan ID kategori
+  Map<int?, List<Produk>> _groupedProduk = {};
 
   final _namaController = TextEditingController();
   final _hargaController = TextEditingController();
@@ -35,15 +37,27 @@ class _StokOpnameScreenState extends State<StokOpnameScreen> {
 
   void _refreshData() async {
     setState(() => _isLoading = true);
-    final produk = await _db.getProduk();
-    final kategori = await _db.getKategori();
-    setState(() {
-      _produkList = produk.map((e) => Produk.fromMap(e)).toList();
-      _kategoriList = kategori.map((e) => Kategori.fromMap(e)).toList();
-      _isLoading = false;
-    });
+    final produkData = await _db.getProduk();
+    final kategoriData = await _db.getKategori();
+    
+    _produkList = produkData.map((e) => Produk.fromMap(e)).toList();
+    _kategoriList = kategoriData.map((e) => Kategori.fromMap(e)).toList();
+    
+    // Logika untuk mengelompokkan produk
+    _groupedProduk.clear();
+    for (var produk in _produkList) {
+      // Jika produk tidak punya kategori, masukkan ke grup 'null'
+      final kategoriId = produk.kategoriId;
+      if (!_groupedProduk.containsKey(kategoriId)) {
+        _groupedProduk[kategoriId] = [];
+      }
+      _groupedProduk[kategoriId]!.add(produk);
+    }
+
+    setState(() => _isLoading = false);
   }
 
+  // ... (fungsi _showForm, _showKategoriDialog, _simpanProduk, _updateStok, _exportToCsv, _importFromCsv biarkan sama) ...
   void _showForm([Produk? produk]) {
     if (produk != null) {
       _namaController.text = produk.nama;
@@ -263,9 +277,16 @@ class _StokOpnameScreenState extends State<StokOpnameScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
+    // Mendapatkan daftar ID kategori yang sudah diurutkan
+    final sortedKategoriIds = _groupedProduk.keys.toList()
+      ..sort((a, b) {
+        if (a == null) return 1; // 'Lainnya' selalu di akhir
+        if (b == null) return -1;
+        return a.compareTo(b);
+      });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manajemen Stok & Produk'),
@@ -275,43 +296,59 @@ class _StokOpnameScreenState extends State<StokOpnameScreen> {
           TextButton(onPressed: _showKategoriDialog, child: const Text('Kelola Kategori', style: TextStyle(color: Colors.white))),
         ],
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : _produkList.isEmpty 
-          ? const Center(child: Text('Tidak ada produk. Silakan tambah produk baru.'))
-          : ListView.builder(
-              itemCount: _produkList.length,
-              itemBuilder: (context, index) {
-                final produk = _produkList[index];
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: ListTile(
-                    title: Text(produk.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ').format(produk.harga)),
-                    trailing: SizedBox(
-                      width: 250,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          IconButton(icon: const Icon(Icons.remove), onPressed: () => _updateStok(produk, -1)),
-                          Text(produk.stok.toString(), style: Theme.of(context).textTheme.titleMedium),
-                          IconButton(icon: const Icon(Icons.add), onPressed: () => _updateStok(produk, 1)),
-                          const VerticalDivider(),
-                          IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _showForm(produk)),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () async {
-                              await _db.deleteProduk(produk.id!);
-                              _refreshData();
-                            },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _produkList.isEmpty
+              ? const Center(child: Text('Tidak ada produk. Silakan tambah produk baru.'))
+              // Menggunakan ListView.builder untuk menampilkan grup kategori
+              : ListView.builder(
+                  itemCount: sortedKategoriIds.length,
+                  itemBuilder: (context, index) {
+                    final kategoriId = sortedKategoriIds[index];
+                    final produkDalamKategori = _groupedProduk[kategoriId]!;
+                    
+                    // Mencari nama kategori dari ID
+                    final kategori = _kategoriList.firstWhere(
+                      (k) => k.id == kategoriId,
+                      orElse: () => Kategori(nama: 'Lainnya (Tanpa Kategori)'),
+                    );
+
+                    // Menggunakan ExpansionTile untuk membuat grup yang bisa dibuka-tutup
+                    return ExpansionTile(
+                      title: Text(kategori.nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      initiallyExpanded: true, // Membuat semua grup terbuka secara default
+                      children: produkDalamKategori.map((produk) {
+                        return Card(
+                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                          child: ListTile(
+                            title: Text(produk.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text(NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ').format(produk.harga)),
+                            trailing: SizedBox(
+                              width: 250,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  IconButton(icon: const Icon(Icons.remove), onPressed: () => _updateStok(produk, -1)),
+                                  Text(produk.stok.toString(), style: Theme.of(context).textTheme.titleMedium),
+                                  IconButton(icon: const Icon(Icons.add), onPressed: () => _updateStok(produk, 1)),
+                                  const VerticalDivider(),
+                                  IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => _showForm(produk)),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                    onPressed: () async {
+                                      await _db.deleteProduk(produk.id!);
+                                      _refreshData();
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showForm(),
         child: const Icon(Icons.add),

@@ -18,14 +18,16 @@ class DatabaseHelper {
 
   Future<Database> _initDB() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
-    String path = join(documentsDirectory.path, 'kasir_pro.db');
+    // Menggunakan nama file database yang berbeda untuk memastikan skema baru dibuat
+    String path = join(documentsDirectory.path, 'kasir_pro_v2.db');
     return await openDatabase(
       path,
-      version: 1,
+      version: 1, // Versi bisa tetap 1 karena kita ganti nama file
       onCreate: _onCreate,
     );
   }
 
+  // Fungsi ini akan membuat semua tabel saat database pertama kali dibuat
   Future _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE kategori (
@@ -76,20 +78,28 @@ class DatabaseHelper {
         value TEXT
       )
     ''');
-    // Default settings
+    
+    // --- PENGATURAN DEFAULT DIPERBARUI ---
     await db.insert('pengaturan', {'key': 'nama_toko', 'value': 'Toko Anda'});
     await db.insert('pengaturan', {'key': 'alamat_toko', 'value': 'Alamat Toko Anda'});
     await db.insert('pengaturan', {'key': 'logo_path', 'value': ''});
     await db.insert('pengaturan', {'key': 'diskon_default', 'value': '0'});
     await db.insert('pengaturan', {'key': 'pajak_default', 'value': '0'});
     await db.insert('pengaturan', {'key': 'izinkan_stok_kosong', 'value': 'false'});
-    await db.insert('pengaturan', {'key': 'printer_address', 'value': ''});
+
+    // Pengaturan Printer Baru
+    await db.insert('pengaturan', {'key': 'printer_type', 'value': 'none'}); // 'none', 'bluetooth', 'usb'
+    await db.insert('pengaturan', {'key': 'bt_printer_address', 'value': ''});
+    await db.insert('pengaturan', {'key': 'bt_printer_name', 'value': ''});
+    await db.insert('pengaturan', {'key': 'usb_vendor_id', 'value': ''});
+    await db.insert('pengaturan', {'key': 'usb_product_id', 'value': ''});
+    await db.insert('pengaturan', {'key': 'usb_printer_name', 'value': ''});
   }
   
   // --- CRUD Kategori ---
   Future<int> insertKategori(Map<String, dynamic> row) async {
     Database db = await database;
-    return await db.insert('kategori', row);
+    return await db.insert('kategori', row, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
   Future<List<Map<String, dynamic>>> getKategori() async {
@@ -137,15 +147,12 @@ class DatabaseHelper {
   Future<int> simpanTransaksi(Map<String, dynamic> transaksi, List<Map<String, dynamic>> items) async {
     Database db = await database;
     return await db.transaction((txn) async {
-      // 1. Simpan header transaksi
       int transaksiId = await txn.insert('transaksi', transaksi);
 
-      // 2. Simpan item-item transaksi
       for (var item in items) {
         item['transaksi_id'] = transaksiId;
         await txn.insert('item_transaksi', item);
 
-        // 3. Kurangi stok jika bukan quick sale
         if (item['produk_id'] != null) {
           await txn.rawUpdate(
             'UPDATE produk SET stok = stok - ? WHERE id = ?',
@@ -158,9 +165,9 @@ class DatabaseHelper {
   }
 
   // --- Laporan ---
-  Future<List<Map<String, dynamic>>> getLaporan(String tglAwal, String tglAkhir) async {
+  Future<List<Map<String, dynamic>>> getLaporan(String tglAwalIso, String tglAkhirIso) async {
     Database db = await database;
-    // Query ini menggabungkan semua tabel yang relevan
+    // --- QUERY DIPERBAIKI ---
     final String query = '''
       SELECT
         t.id AS transaksi_id,
@@ -173,7 +180,6 @@ class DatabaseHelper {
         it.harga AS harga_item,
         it.jumlah,
         it.is_quick_sale,
-        p.nama AS nama_produk_db,
         k.nama AS nama_kategori
       FROM transaksi t
       JOIN item_transaksi it ON t.id = it.transaksi_id
@@ -182,14 +188,14 @@ class DatabaseHelper {
       WHERE t.timestamp BETWEEN ? AND ?
       ORDER BY t.timestamp DESC
     ''';
-    return await db.rawQuery(query, [tglAwal, '$tglAkhir 23:59:59']);
+    return await db.rawQuery(query, [tglAwalIso, tglAkhirIso]);
   }
 
   // --- Pengaturan ---
   Future<Map<String, String>> getPengaturan() async {
     Database db = await database;
     List<Map<String, dynamic>> results = await db.query('pengaturan');
-    return {for (var item in results) item['key']: item['value']};
+    return {for (var item in results) item['key']: item['value'] ?? ''};
   }
 
   Future<void> updatePengaturan(String key, String value) async {
@@ -199,6 +205,7 @@ class DatabaseHelper {
       {'value': value},
       where: 'key = ?',
       whereArgs: [key],
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 }

@@ -50,7 +50,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
         _produkList = produk.map((e) => Produk.fromMap(e)).toList();
       });
     } catch (e) {
-      // handle error
+      _showErrorSnackbar("Gagal memuat data awal: $e");
     } finally {
       setState(() => _isLoading = false);
     }
@@ -248,39 +248,38 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
       final transaksiId = await _db.simpanTransaksi(transaksiData, itemsData);
       _showSuccessSnackbar('Transaksi berhasil disimpan');
 
-      // Cetak struk jika printer terkonfigurasi
-      if (_pengaturan['printer_address'] != null && _pengaturan['printer_address']!.isNotEmpty) {
-        await _printer.cetakStruk(
-          printerAddress: _pengaturan['printer_address']!,
-          infoToko: _pengaturan,
-          transaksiId: transaksiId,
-          total: _total,
-          diskon: double.tryParse(_diskonController.text) ?? 0,
-          pajak: double.tryParse(_pajakController.text) ?? 0,
-          bayar: bayar,
-          metodePembayaran: metodePembayaran,
-          items: _keranjang,
-        );
-         _showSuccessSnackbar('Struk berhasil dikirim ke printer.');
-      }
-
+      // --- BAGIAN YANG DIPERBAIKI ---
+      // Sekarang mengirim seluruh map pengaturan ke fungsi cetak
+      await _printer.cetakStruk(
+        infoToko: _pengaturan,
+        transaksiId: transaksiId,
+        total: _total,
+        diskon: double.tryParse(_diskonController.text) ?? 0,
+        pajak: double.tryParse(_pajakController.text) ?? 0,
+        bayar: bayar,
+        metodePembayaran: metodePembayaran,
+        items: _keranjang,
+      );
+      
       setState(() {
         _keranjang.clear();
         _hitungTotal();
       });
-      _loadInitialData(); // Muat ulang data untuk update stok
+      _loadInitialData();
     } catch (e) {
       _showErrorSnackbar('Gagal menyimpan atau mencetak: $e');
     }
   }
 
   void _showErrorSnackbar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
   }
 
   void _showSuccessSnackbar(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
@@ -288,6 +287,7 @@ class _TransaksiScreenState extends State<TransaksiScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ... (Sisa kode UI tidak berubah, biarkan seperti sebelumnya) ...
     return Scaffold(
       appBar: AppBar(title: const Text('Mesin Kasir')),
       body: Row(

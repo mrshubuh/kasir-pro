@@ -48,17 +48,21 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
   void _fetchLaporan() async {
     setState(() => _isLoading = true);
 
-    final tglAwalStr = DateFormat('yyyy-MM-dd').format(_tanggalAwal);
-    final tglAkhirStr = DateFormat('yyyy-MM-dd').format(_tanggalAkhir);
+    // --- LOGIKA TANGGAL DIPERBAIKI ---
+    // Membuat rentang tanggal yang lengkap dari awal hari hingga akhir hari
+    final tglAwal = DateTime(_tanggalAwal.year, _tanggalAwal.month, _tanggalAwal.day, 0, 0, 0);
+    final tglAkhir = DateTime(_tanggalAkhir.year, _tanggalAkhir.month, _tanggalAkhir.day, 23, 59, 59);
     
-    final data = await _db.getLaporan(tglAwalStr, tglAkhirStr);
+    // Mengonversi ke format ISO 8601 yang sesuai dengan data di database
+    final tglAwalIso = tglAwal.toIso8601String();
+    final tglAkhirIso = tglAkhir.toIso8601String();
+    
+    final data = await _db.getLaporan(tglAwalIso, tglAkhirIso);
 
     double total = 0;
     double tunai = 0;
     double transfer = 0;
     
-    // Gunakan Set untuk menyimpan ID transaksi yang sudah diproses
-    // agar total tidak dihitung berulang kali untuk setiap item dalam transaksi yang sama.
     final Set<int> processedTxIds = {};
 
     for (var row in data) {
