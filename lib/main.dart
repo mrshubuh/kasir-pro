@@ -3,16 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:kasir_pro/screens/home_screen.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-// Fungsi main sekarang menjadi async untuk memastikan inisialisasi selesai
 Future<void> main() async {
-  // Wajib dipanggil sebelum menjalankan aplikasi untuk memastikan binding Flutter siap
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Memeriksa apakah platform adalah desktop (Windows, Linux, atau MacOS)
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    // Inisialisasi FFI untuk sqflite
     sqfliteFfiInit();
-    // Mengubah factory database default ke versi FFI yang kompatibel dengan desktop
     databaseFactory = databaseFactoryFfi;
   }
 
@@ -48,14 +43,7 @@ class KasirProApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: Colors.grey.shade100,
         // --- BAGIAN YANG DIPERBAIKI ---
-        // Menggunakan CardThemeData, bukan CardTheme
-        cardTheme: CardTheme(
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.grey.shade300)
-          )
-        )
+        // Properti cardTheme dihapus untuk menghindari error build
       ),
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
