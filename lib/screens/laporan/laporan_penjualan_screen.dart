@@ -2,6 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:kasir_pro/database/database_helper.dart';
 
+// Tipe data baru untuk hasil laporan agar lebih aman
+class LaporanResult {
+  final List<Map<String, dynamic>> data;
+  final double totalPenjualan;
+  final double totalTunai;
+  final double totalTransfer;
+
+  LaporanResult({
+    required this.data,
+    required this.totalPenjualan,
+    required this.totalTunai,
+    required this.totalTransfer,
+  });
+}
+
 class LaporanPenjualanScreen extends StatefulWidget {
   const LaporanPenjualanScreen({super.key});
 
@@ -11,83 +26,34 @@ class LaporanPenjualanScreen extends StatefulWidget {
 
 class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
   final DatabaseHelper _db = DatabaseHelper();
-  List<Map<String, dynamic>> _laporanData = [];
+  
+  // Menggunakan Future untuk dikelola oleh FutureBuilder
+  Future<LaporanResult>? _laporanFuture;
+  
   DateTime _tanggalAwal = DateTime.now();
   DateTime _tanggalAkhir = DateTime.now();
-
-  double _totalPenjualan = 0;
-  double _totalTunai = 0;
-  double _totalTransfer = 0;
-  bool _isLoading = true;
-  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _fetchLaporan();
+    // Memanggil fetch laporan saat halaman pertama kali dibuka
+    _laporanFuture = _fetchLaporan();
   }
 
-  Future<void> _pilihTanggal(BuildContext context, bool isAwal) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: isAwal ? _tanggalAwal : _tanggalAkhir,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isAwal) {
-          _tanggalAwal = picked;
-        } else {
-          _tanggalAkhir = picked;
-        }
-      });
-      _fetchLaporan();
-    }
-  }
-
-  void _fetchLaporan() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-    
+  // Fungsi ini sekarang mengembalikan data, bukan mengatur state
+  Future<LaporanResult> _fetchLaporan() async {
     try {
-      // ---!!!--- TES DIAGNOSTIK ---!!!---
-      // Menunggu 2 detik untuk simulasi loading, lalu menyediakan data palsu.
-      // Panggilan ke database dinonaktifkan sementara.
-      await Future.delayed(const Duration(seconds: 2));
-
-      final List<Map<String, dynamic>> fakeData = [
-        {
-          'transaksi_id': 101,
-          'timestamp': DateTime.now().toIso8601String(),
-          'total': 50000.0,
-          'metode_pembayaran': 'Tunai',
-          'nama_produk': 'Produk Tes 1 (Data Palsu)',
-          'harga_item': 25000.0,
-          'jumlah': 2,
-        },
-        {
-          'transaksi_id': 102,
-          'timestamp': DateTime.now().subtract(const Duration(hours: 1)).toIso8601String(),
-          'total': 30000.0,
-          'metode_pembayaran': 'Transfer',
-          'nama_produk': 'Produk Tes 2 (Data Palsu)',
-          'harga_item': 30000.0,
-          'jumlah': 1,
-        },
-      ];
+      final tglAwal = DateTime(_tanggalAwal.year, _tanggalAwal.month, _tanggalAwal.day, 0, 0, 0);
+      final tglAkhir = DateTime(_tanggalAkhir.year, _tanggalAkhir.month, _tanggalAkhir.day, 23, 59, 59);
       
-      final data = fakeData; // Menggunakan data palsu
-      // final data = await _db.getLaporan(tglAwalIso, tglAkhirIso); // Panggilan asli dinonaktifkan
-      // ---!!!--- AKHIR DARI TES DIAGNOSTIK ---!!!---
-
+      final tglAwalIso = tglAwal.toIso8601String();
+      final tglAkhirIso = tglAkhir.toIso8601String();
+      
+      final data = await _db.getLaporan(tglAwalIso, tglAkhirIso);
 
       double total = 0;
       double tunai = 0;
       double transfer = 0;
-      
       final Set<int> processedTxIds = {};
 
       for (var row in data) {
@@ -104,18 +70,36 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
         }
       }
 
-      setState(() {
-        _laporanData = data;
-        _totalPenjualan = total;
-        _totalTunai = tunai;
-        _totalTransfer = transfer;
-      });
+      // Mengembalikan semua hasil dalam satu objek
+      return LaporanResult(
+        data: data,
+        totalPenjualan: total,
+        totalTunai: tunai,
+        totalTransfer: transfer,
+      );
     } catch (e) {
+      // Jika error, lemparkan lagi agar ditangkap oleh FutureBuilder
+      throw Exception('Gagal memuat laporan: $e');
+    }
+  }
+
+  Future<void> _pilihTanggal(BuildContext context, bool isAwal) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isAwal ? _tanggalAwal : _tanggalAkhir,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null) {
       setState(() {
-        _errorMessage = "Terjadi kesalahan: ${e.toString()}";
+        if (isAwal) {
+          _tanggalAwal = picked;
+        } else {
+          _tanggalAkhir = picked;
+        }
+        // Memuat ulang data dengan memanggil _fetchLaporan lagi
+        _laporanFuture = _fetchLaporan();
       });
-    } finally {
-      setState(() => _isLoading = false);
     }
   }
 
@@ -126,63 +110,44 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
       body: Column(
         children: [
           _buildFilterSection(),
-          _buildSummarySection(),
-          const Divider(thickness: 2),
+          // Menggunakan FutureBuilder untuk menangani semua state (loading, error, data)
           Expanded(
-            child: _buildContent(),
+            child: FutureBuilder<LaporanResult>(
+              future: _laporanFuture,
+              builder: (context, snapshot) {
+                // 1. Saat sedang loading
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                // 2. Jika terjadi error
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+                }
+
+                // 3. Jika data berhasil didapat
+                if (snapshot.hasData) {
+                  final result = snapshot.data!;
+                  return Column(
+                    children: [
+                      _buildSummarySection(result),
+                      const Divider(thickness: 2),
+                      Expanded(
+                        child: result.data.isEmpty
+                            ? const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'))
+                            : _buildReportList(result.data),
+                      ),
+                    ],
+                  );
+                }
+
+                // State default jika tidak ada apa-apa
+                return const Center(child: Text('Silakan pilih rentang tanggal.'));
+              },
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildContent() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _errorMessage!,
-            style: const TextStyle(color: Colors.red, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-
-    if (_laporanData.isEmpty) {
-      return const Center(child: Text('Tidak ada data untuk rentang tanggal ini.'));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 16),
-      itemCount: _laporanData.length,
-      itemBuilder: (context, index) {
-        final row = _laporanData[index];
-        final timestamp = DateTime.tryParse(row['timestamp'].toString()) ?? DateTime.now();
-        final currencyFormat = NumberFormat.currency(locale: 'id_ID', decimalDigits: 0, symbol: 'Rp');
-        final harga = (row['harga_item'] as num?)?.toDouble() ?? 0.0;
-        final jumlah = (row['jumlah'] as num?)?.toInt() ?? 0;
-
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: ListTile(
-            leading: CircleAvatar(
-              child: Text(row['transaksi_id'].toString()),
-            ),
-            title: Text(row['nama_produk'].toString()),
-            subtitle: Text(DateFormat('dd MMM yyyy, HH:mm').format(timestamp)),
-            trailing: Text(
-              currencyFormat.format(harga * jumlah),
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -201,7 +166,7 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
     );
   }
 
-  Widget _buildSummarySection() {
+  Widget _buildSummarySection(LaporanResult result) {
     final currencyFormat = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -211,10 +176,10 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              _buildSummaryRow('Total Penjualan:', currencyFormat.format(_totalPenjualan), isHeader: true),
+              _buildSummaryRow('Total Penjualan:', currencyFormat.format(result.totalPenjualan), isHeader: true),
               const Divider(),
-              _buildSummaryRow('Total Tunai:', currencyFormat.format(_totalTunai)),
-              _buildSummaryRow('Total Transfer:', currencyFormat.format(_totalTransfer)),
+              _buildSummaryRow('Total Tunai:', currencyFormat.format(result.totalTunai)),
+              _buildSummaryRow('Total Transfer:', currencyFormat.format(result.totalTransfer)),
             ],
           ),
         ),
@@ -223,18 +188,44 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
   }
   
   Widget _buildSummaryRow(String title, String value, {bool isHeader = false}) {
-      final style = isHeader 
-          ? Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
-          : Theme.of(context).textTheme.titleMedium;
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title, style: style),
-            Text(value, style: style),
-          ],
-        ),
-      );
+    final style = isHeader 
+        ? Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
+        : Theme.of(context).textTheme.titleMedium;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title, style: style),
+          Text(value, style: style),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportList(List<Map<String, dynamic>> data) {
+    return ListView.builder(
+      itemCount: data.length,
+      itemBuilder: (context, index) {
+        final row = data[index];
+        final timestamp = DateTime.tryParse(row['timestamp'].toString()) ?? DateTime.now();
+        final currencyFormat = NumberFormat.currency(locale: 'id_ID', decimalDigits: 0, symbol: 'Rp');
+        final harga = (row['harga_item'] as num?)?.toDouble() ?? 0.0;
+        final jumlah = (row['jumlah'] as num?)?.toInt() ?? 0;
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: Text("ID:${row['transaksi_id']}"),
+            title: Text(row['nama_produk'].toString()),
+            subtitle: Text(DateFormat('dd MMM yyyy, HH:mm').format(timestamp)),
+            trailing: Text(
+              currencyFormat.format(harga * jumlah),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
