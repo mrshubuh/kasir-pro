@@ -57,8 +57,9 @@ class _LaporanPenjualanScreenState extends State<LaporanPenjualanScreen> {
       final Set<int> processedTxIds = {};
 
       for (var row in data) {
-        final int transaksiId = row['transaksi_id'];
-        if (!processedTxIds.contains(transaksiId)) {
+        // Pastikan 'transaksi_id' tidak null sebelum digunakan
+        final int? transaksiId = row['transaksi_id'];
+        if (transaksiId != null && !processedTxIds.contains(transaksiId)) {
           final double txTotal = (row['total'] as num?)?.toDouble() ?? 0.0;
           total += txTotal;
           if (row['metode_pembayaran'] == 'Tunai') {
