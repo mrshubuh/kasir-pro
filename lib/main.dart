@@ -14,7 +14,6 @@ Future<void> main() async {
     sqfliteFfiInit();
     // Mengubah factory database default ke versi FFI yang kompatibel dengan desktop
     databaseFactory = databaseFactoryFfi;
-    print("Inisialisasi FFI untuk Desktop BERHASIL.");
   }
 
   runApp(const KasirProApp());
@@ -42,12 +41,14 @@ class KasirProApp extends StatelessWidget {
             )
           ),
         ),
-        appBarTheme: AppBarTheme(
+        appBarTheme: const AppBarTheme(
           backgroundColor: Colors.deepPurple,
           foregroundColor: Colors.white,
           elevation: 2,
         ),
         scaffoldBackgroundColor: Colors.grey.shade100,
+        // --- BAGIAN YANG DIPERBAIKI ---
+        // Menggunakan CardThemeData, bukan CardTheme
         cardTheme: CardTheme(
           elevation: 1,
           shape: RoundedRectangleBorder(
